@@ -27,7 +27,7 @@ python finetune_on_target.py \
 	--train_batch_size 32 \
 	--pregen_emb_path "${OUTPUT_DIR}/pregen_embs/pregen_${2}_cat4_${1}" \
 	--task_type binary \
-	--other_fields age sofa sapsii_prob sapsii_prob oasis oasis_prob \
+	--other_fields age sofa sapsii sapsii_prob oasis oasis_prob \
         --gridsearch_classifier \
         --gridsearch_c \
         --emb_method cat4
