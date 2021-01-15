@@ -4,26 +4,26 @@
 #SBATCH -c 30 
 #SBATCH --output=data_processing_%A.out
 #SBATCH --mem 300gb
-set -e
-source activate hurtfulwords
+# set -e
+# conda activate hurtfulwords
 
-BASE_DIR="/h/haoran/projects/HurtfulWords/"
-OUTPUT_DIR="/h/haoran/projects/HurtfulWords/data/"
+BASE_DIR="/home/darius/HurtfulWords/"
+OUTPUT_DIR="/media/data_1/darius/data"
 mkdir -p "$OUTPUT_DIR/finetuning/"
-SCIBERT_DIR="/scratch/gobi1/haoran/shared_data/BERT_DeBias/models/SciBERT"
-MIMIC_BENCHMARK_DIR="/scratch/gobi2/haoran/shared_data/MIMIC_benchmarks/"
+SCIBERT_DIR="/media/data_1/darius/models/scibert_scivocab_uncased"
+MIMIC_BENCHMARK_DIR="/media/data_1/darius/MIMIC_benchmarks/"
 
 cd "$BASE_DIR/scripts/"
 
-echo "Processing MIMIC data..."
-python get_data.py $OUTPUT_DIR
+# echo "Processing MIMIC data..."
+# python get_data.py $OUTPUT_DIR
 
-echo "Tokenizing sentences..."
-python sentence_tokenization.py "$OUTPUT_DIR/df_raw.pkl" "$OUTPUT_DIR/df_extract.pkl" "$SCIBERT_DIR"
-rm "$OUTPUT_DIR/df_raw.pkl" 
+# echo "Tokenizing sentences..."
+# python sentence_tokenization.py "$OUTPUT_DIR/df_raw.pkl" "$OUTPUT_DIR/df_extract.pkl" "$SCIBERT_DIR"
+# rm "$OUTPUT_DIR/df_raw.pkl" 
 
-echo "Grouping short sentences..."
-python group_sents.py "$OUTPUT_DIR/df_extract.pkl" "$OUTPUT_DIR/df_grouped.pkl" "$SCIBERT_DIR"
+# echo "Grouping short sentences..."
+# python group_sents.py "$OUTPUT_DIR/df_extract.pkl" "$OUTPUT_DIR/df_grouped.pkl" "$SCIBERT_DIR"
 
 echo "Pregenerating training data..."
 python pregenerate_training_data.py \
@@ -42,11 +42,11 @@ python pregenerate_training_data.py \
 	--epochs_to_generate 1 \
 	--max_seq_len 512 
 
-echo "Generating finetuning targets..."
-python make_targets.py \
-	--processed_df "$OUTPUT_DIR/df_extract.pkl" \
-	--mimic_benchmark_dir "$MIMIC_BENCHMARK_DIR" \
-	--output_dir "$OUTPUT_DIR/finetuning/"
+# echo "Generating finetuning targets..."
+# python make_targets.py \
+# 	--processed_df "$OUTPUT_DIR/df_extract.pkl" \
+# 	--mimic_benchmark_dir "$MIMIC_BENCHMARK_DIR" \
+# 	--output_dir "$OUTPUT_DIR/finetuning/"
 
 # rm "$OUTPUT_DIR/df_extract.pkl" 
 # rm "$OUTPUT_DIR/df_grouped.pkl" 

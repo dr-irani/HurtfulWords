@@ -29,7 +29,15 @@ def preprocessing(row):
             seqs.append(' '.join(row.toks[j*Constants.SLIDING_DIST:(j+1)*Constants.SLIDING_DIST+(Constants.MAX_SEQ_LEN - Constants.SLIDING_DIST-2)]))
     return seqs
 
-df = pd.read_pickle(args.processed_df.resolve())
+data_path = '/'.join(args.processed_df.split('/')[:-1])
+files = sorted([os.path.join(data_path, f) for f in os.listdir(data_path) if 'extract' in f])
+
+df = pd.read_pickle(files[0])
+for f in tqdm(files[1:]):
+    df = pd.concat([df, pd.read_pickle(f)])
+    print(len(df))
+
+# df = pd.read_pickle(args.processed_df.resolve())
 df['seqs'] = df.apply(preprocessing, axis = 1)
 df['num_seqs'] = df.seqs.apply(len)
 assert(df.seqs.apply(lambda x: any([len(i)== 0 for i in x])).sum() == 0)

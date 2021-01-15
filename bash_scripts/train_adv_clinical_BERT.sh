@@ -4,19 +4,20 @@
 #SBATCH -c 8
 #SBATCH --output train_adv%A.log
 #SBATCH --mem 160gb
-set -e
-source activate hurtfulwords
+# set -e
+# source activate hurtfulwords
 
-BASE_DIR="/h/haoran/projects/HurtfulWords"
-OUTPUT_DIR="/scratch/hdd001/home/haoran/shared_data/BERT_DeBias/data/"
-SCIBERT_DIR="/scratch/hdd001/home/haoran/shared_data/BERT_DeBias/models/SciBERT"
-mkdir -p "$OUTPUT_DIR/models/"
+BASE_DIR="/home/darius/HurtfulWords"
+OUTPUT_DIR="/media/data_1/darius/"
+DATA_DIR="$OUTPUT_DIR/data"
+SCIBERT_DIR="/media/data_1/darius/models/SciBERT"
+# mkdir -p "$OUTPUT_DIR/models/"
 DOMAIN="$1"
 
 cd "$BASE_DIR/scripts" 
 
 python adversarial_finetune_on_pregen.py \
-	--pregenerated_data "$OUTPUT_DIR/pregen_epochs/128/" \
+	--pregenerated_data "$DATA_DIR/pregen_epochs/128/" \
 	--output_dir "$OUTPUT_DIR/models/adv_clinical_BERT_${DOMAIN}_1_epoch_128/" \
 	--bert_model "$SCIBERT_DIR" \
 	--do_lower_case \
@@ -29,7 +30,7 @@ python adversarial_finetune_on_pregen.py \
     --use_new_mapping
 
 python adversarial_finetune_on_pregen.py \
-	--pregenerated_data "$OUTPUT_DIR/pregen_epochs/512/" \
+	--pregenerated_data "$DATA_DIR/pregen_epochs/512/" \
 	--output_dir "$OUTPUT_DIR/models/adv_clinical_BERT_${DOMAIN}_1_epoch_512/" \
 	--bert_model "$OUTPUT_DIR/models/adv_clinical_BERT_${DOMAIN}_1_epoch_128/" \
 	--do_lower_case \

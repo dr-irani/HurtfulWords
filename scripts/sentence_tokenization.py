@@ -10,6 +10,10 @@ import argparse
 import spacy
 import re
 from heuristic_tokenize import sent_tokenize_rules
+from tqdm import tqdm
+from p_tqdm import p_map
+from multiprocessing import Pool, cpu_count
+from functools import partial
 
 parser = argparse.ArgumentParser("Given a dataframe with a 'text' column, saves a dataframe to file, which is a copy of the input dataframe with 'sents_space' and 'toks' columns added on")
 parser.add_argument("input_loc", help = "pickled dataframe with 'text' column", type=str)
@@ -21,6 +25,8 @@ tokenizer = BertTokenizer.from_pretrained(args.model_path)
 model = BertModel.from_pretrained(args.model_path)
 
 df = pd.read_pickle(args.input_loc)
+
+tqdm.pandas()
 
 '''
 Code taken from https://github.com/EmilyAlsentzer/clinicalBERT
@@ -149,36 +155,62 @@ def repl(m):
 nlp = spacy.load('en_core_sci_md', disable=['tagger','ner'])
 nlp.add_pipe(sbd_component, before='parser')
 
-df['sents'], df['sections'] = zip(*df.text.apply(process_note))
-df['mod_text'] = df['sections'].apply(lambda x: '\n'.join(x))
+def parallelize(data, func, num_of_processes=8):
+    data_split = np.array_split(data, num_of_processes)
+    pool = Pool(num_of_processes)
+    data = pd.concat(p_map(func, data_split))
+    pool.close()
+    pool.join()
+    return data
 
+def run_on_subset(func, data_subset):
+    return data_subset.progress_apply(func)
+
+def parallelize_on_rows(data, func, num_of_processes=8):
+    return parallelize(data, partial(run_on_subset, func), cpu_count())
+
+print("Process notes...")
+df['sents'], df['sections'] = zip(*(parallelize_on_rows(df.text, process_note)))
+print("Join notes...")
+df['mod_text'] = df['sections'].progress_apply(lambda x: '\n'.join(x))
+
+print('Tokenize...')
 tokens = []
-for i in df.mod_text:
+for i in tqdm(df.mod_text):
     tokens.append(tokenizer.tokenize(i))
 df['toks'] = tokens
-df['num_toks'] = df.toks.apply(len)
+df['num_toks'] = df.toks.progress_apply(len)
 df = df[(df.num_toks > 0)]
+
+# for i, data in tqdm(enumerate(np.array_split(df, 10))):
+#     data.to_pickle(f'/media/data_1/darius/data/df_checkpoint_{i}.pkl')
 
 def tokenize_sents(x):
     return [len(tokenizer.tokenize(i)) for i in x]
 
-df['sent_toks_lens'] = df['sents'].apply(lambda x: tokenize_sents(x)) #length of each sent
+print('Get lengths...')
+df['sent_toks_lens'] = df['sents'].progress_apply(lambda x: tokenize_sents(x)) #length of each sent
+# df['sent_toks_lens'] = parallelize_on_rows(df['sents'], tokenize_sents) #length of each sent
+
+for i, data in tqdm(enumerate(np.array_split(df, 10))):
+    data.to_pickle(f'/media/data_1/darius/data/df_extract_{i}.pkl')
 
 # sentences could be composed of weird characters, that have length >= 1
 # but when tokenized, they are dropped, resulting in empty sentences
-def drop_bad_sents(x):
-    i=0
-    while i<len(x.sent_toks_lens):
-        if x.sent_toks_lens[i] == 0:
-            x.sent_toks_lens.pop(i)
-            x.sents.pop(i)
-            i -=1
-        i+=1
+# def drop_bad_sents(x):
+#     i=0
+#     while i<len(x.sent_toks_lens):
+#         if x.sent_toks_lens[i] == 0:
+#             x.sent_toks_lens.pop(i)
+#             x.sents.pop(i)
+#             i -=1
+#         i+=1
 
-#none of the sentences are empty
-#assert(df.sent_toks_lens.apply(lambda x: sum([i == 0 for i in x])).sum() == 0)
+# #none of the sentences are empty
+# #assert(df.sent_toks_lens.apply(lambda x: sum([i == 0 for i in x])).sum() == 0)
 
-df2 = df.loc[df.sent_toks_lens.apply(lambda x: sum([i == 0 for i in x])) > 0]
-df2.apply(drop_bad_sents, axis = 1) #modifies sentence list in place
+# print('Drop bad sentences...')
+# df2 = df.loc[df.sent_toks_lens.apply(lambda x: sum([i == 0 for i in x])) > 0]
+# df2.apply(drop_bad_sents, axis = 1) #modifies sentence list in place
 
-df.to_pickle(args.output_loc)
+# df.to_pickle(args.output_loc)

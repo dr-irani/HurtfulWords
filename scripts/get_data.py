@@ -10,10 +10,10 @@ from pathlib import Path
 output_folder = Path(sys.argv[1])
 output_folder.mkdir(parents = True, exist_ok = True)
 
-conn = psycopg2.connect('dbname=mimic user=haoran host=mimic password=password')
+conn = psycopg2.connect("dbname=mimic user=darius host='/var/run/postgresql' password=password")
 
 pats = pd.read_sql_query('''
-select subject_id, gender, dob, dod from mimiciii.patients
+select subject_id, gender, dob, dod from public.patients
 ''', conn)
 
 n_splits = 12
@@ -28,7 +28,7 @@ religion, ethnicity,
 admittime, deathtime, dischtime,
 HOSPITAL_EXPIRE_FLAG, DISCHARGE_LOCATION,
 diagnosis as adm_diag
-from mimiciii.admissions
+from public.admissions
 ''', conn)
 
 df = pd.merge(pats, adm, on='subject_id', how = 'inner')
@@ -42,7 +42,7 @@ df['dod_merged'] = df.apply(merge_death, axis = 1)
 
 
 notes = pd.read_sql_query('''
-select category, chartdate, charttime, hadm_id, row_id as note_id, text from mimiciii.noteevents
+select category, chartdate, charttime, hadm_id, row_id as note_id, text from public.noteevents
 where iserror is null
 ''', conn)
 
@@ -86,7 +86,7 @@ df.loc[(df.category == 'Discharge summary') |
        (df.category == 'Echo') |
        (df.category == 'ECG'), 'fold'] = 'NA'
 
-icds = (pd.read_sql_query('select * from mimiciii.diagnoses_icd', conn)
+icds = (pd.read_sql_query('select * from public.diagnoses_icd', conn)
         .groupby('hadm_id')
         .agg({'icd9_code': lambda x: list(x.values)})
         .reset_index())
@@ -108,16 +108,16 @@ for i in Constants.groups:
 acuities = pd.read_sql_query('''
 select * from (
 select a.subject_id, a.hadm_id, a.icustay_id, a.oasis, a.oasis_prob, b.sofa from
-(mimiciii.oasis a
-natural join mimiciii.sofa b )) ab
+(public.oasis a
+natural join public.sofa b )) ab
 natural join
 (select subject_id, hadm_id, icustay_id, sapsii, sapsii_prob from
-mimiciii.sapsii) c
+public.sapsii) c
 ''', conn)
 
 icustays = pd.read_sql_query('''
 select subject_id, hadm_id, icustay_id, intime, outtime
-from mimiciii.icustays
+from public.icustays
 ''', conn).set_index(['subject_id','hadm_id'])
 
 def fill_icustay(row):

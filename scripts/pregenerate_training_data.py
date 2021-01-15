@@ -59,6 +59,11 @@ class DocumentDatabase:
     def __getitem__(self, item):
         return self.documents[item]
 
+    def merge(self, document_db):
+        self.documents += document_db.documents
+        self.doc_lengths += document_db.doc_lengths
+        self._precalculate_doc_weights()
+
 
 def truncate_seq_pair(tokens_a, tokens_b, max_num_tokens):
     """Truncates a pair of sequences to a maximum sequence length. Lifted from Google's BERT repo."""
@@ -407,9 +412,36 @@ def getGroups(row):
     temp['note_id'] = row['note_id']
     return temp
 
+def prepare_docs(args, tokenizer, data):
+    if len(args.categories) > 0:
+        for i in args.categories:
+            assert((df['category'] == i).sum() > 0) # make sure each category is present
+        df = df[df['category'].isin(args.categories)]
+        if df.shape[0] == 0:
+            raise Exception('dataframe is empty after subsetting!')
+
+    if len(args.drop_group) > 0:
+        print('Records before dropping: %s' %len(df))
+        for i in Constants.drop_groups[args.drop_group]:
+            df = df[df[args.drop_group] != i]
+        print('Records after dropping: %s' %len(df))
+
+    docs =  DocumentDatabase()
+    for idx, row in tqdm(data.iterrows()):
+        doc = []
+        groups = getGroups(row)
+        for d, line in enumerate(row[args.col_name]):
+            sample = {
+                'tokens': tokenizer.tokenize(line),
+                 'groups': groups
+            }
+            doc.append(sample)
+        docs.add_document(doc)
+    return docs
+
 def main():
     parser = ArgumentParser()
-    parser.add_argument('--train_df', type=Path, required=True)
+    parser.add_argument('--train_df', type=str, required=True)
     parser.add_argument('--col_name', type=str, required = True)
     parser.add_argument("--output_dir", type=Path, required=True)
     parser.add_argument("--bert_model", type=str, required=True)
@@ -429,34 +461,18 @@ def main():
 
     args = parser.parse_args()
 
-    df = pd.read_pickle(args.train_df)
-
-    if len(args.categories) > 0:
-        for i in args.categories:
-            assert((df['category'] == i).sum() > 0) # make sure each category is present
-        df = df[df['category'].isin(args.categories)]
-        if df.shape[0] == 0:
-            raise Exception('dataframe is empty after subsetting!')
-
-    if len(args.drop_group) > 0:
-        print('Records before dropping: %s' %len(df))
-        for i in Constants.drop_groups[args.drop_group]:
-            df = df[df[args.drop_group] != i]
-        print('Records after dropping: %s' %len(df))
+    # df = pd.read_pickle(args.train_df)
 
     tokenizer = BertTokenizer.from_pretrained(args.bert_model, do_lower_case=True)
     vocab_list = list(tokenizer.vocab.keys())
-    docs =  DocumentDatabase()
-    for idx, row in df.iterrows():
-        doc = []
-        groups = getGroups(row)
-        for d, line in enumerate(row[args.col_name]):
-            sample = {
-                'tokens': tokenizer.tokenize(line),
-                 'groups': groups
-            }
-            doc.append(sample)
-        docs.add_document(doc)
+
+    data_path = '/'.join(args.train_df.split('/')[:-1])
+    files = sorted([os.path.join(data_path, f) for f in os.listdir(data_path) if 'grouped' in f])
+
+    docs = prepare_docs(args, tokenizer, pd.read_pickle(files[0]))
+    for f in tqdm(files[1:]):
+        print(len(docs.doc_lengths))
+        docs.merge(prepare_docs(args, tokenizer, pd.read_pickle(f)))
 
     args.output_dir.mkdir(exist_ok=True, parents = True)
     for epoch in trange(args.epochs_to_generate, desc="Epoch"):
