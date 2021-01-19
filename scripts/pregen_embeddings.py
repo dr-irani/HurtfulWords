@@ -22,28 +22,34 @@ parser.add_argument('--output_path', type = str)
 parser.add_argument('--emb_method', default = 'last', const = 'last', nargs = '?', choices = ['last', 'sum4', 'cat4'], help = 'how to extract embeddings from BERT output')
 args = parser.parse_args()
 
-df = pd.read_pickle(args.df_path)
-if 'note_id' in df.columns:
-    df = df.set_index('note_id')
 tokenizer = BertTokenizer.from_pretrained(args.model_path)
 model = BertModel.from_pretrained(args.model_path)
 
-def convert_input_example(note_id, text, seqIdx, subj_id):
-    return InputExample(guid = '%s-%s'%(note_id,seqIdx), subject_id=subj_id, text_a = text, text_b = None, label = 0, group = 0, other_fields = [])
-
-examples = [convert_input_example(idx, i, c, row.subject_id) for idx, row in df.iterrows() for (c,i) in enumerate(row.seqs)]
-features = convert_examples_to_features(examples,
-                                        Constants.MAX_SEQ_LEN, tokenizer, output_mode = 'classification')
-
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 n_gpu = torch.cuda.device_count()
+print(f'Using {device} with {n_gpu} GPUs')
 model.to(device)
 
 if n_gpu > 1:
     model = torch.nn.DataParallel(model)
 
-generator = data.DataLoader(MIMICDataset(features, 'train', 'classification'),  shuffle = True,  batch_size = n_gpu*32)
+print('Reading dataframe...')
+df = pd.read_pickle(args.df_path)
+if 'note_id' in df.columns:
+    df = df.set_index('note_id')
 
+def convert_input_example(note_id, text, seqIdx, subj_id):
+    return InputExample(guid = '%s-%s'%(note_id,seqIdx), subject_id=subj_id, text_a = text, text_b = None, label = 0, group = 0, other_fields = [])
+
+print('Converting input examples...')
+examples = [convert_input_example(idx, i, c, row.subject_id) for idx, row in tqdm(df.iterrows()) for (c,i) in enumerate(row.seqs)]
+print('Featurizing...')
+features = convert_examples_to_features(examples,
+                                        Constants.MAX_SEQ_LEN, tokenizer, output_mode = 'classification')
+
+generator = data.DataLoader(MIMICDataset(features, 'train', 'classification'),  shuffle = True,  batch_size = n_gpu*16)
+
+print('Generate embeddings...')
 EMB_SIZE = get_emb_size(args.emb_method)
 def get_embs(generator):
     model.eval()

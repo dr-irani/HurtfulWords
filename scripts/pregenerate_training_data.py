@@ -474,6 +474,19 @@ def main():
         print(len(docs.doc_lengths))
         docs.merge(prepare_docs(args, tokenizer, pd.read_pickle(f)))
 
+    with open('/media/data_1/darius/data/docs.pkl', 'rb') as f:
+        pickle.dump(docs, f)
+
+    breakpoint()
+
+    # df = pd.read_pickle(files[0])
+    # for f in tqdm(files[1:]):
+    #     df = pd.concat([df, pd.read_pickle(f)])
+    #     print(len(df))
+
+    # print('Prepare docs...')
+    # docs = prepare_docs(args, tokenizer, df)
+
     args.output_dir.mkdir(exist_ok=True, parents = True)
     for epoch in trange(args.epochs_to_generate, desc="Epoch"):
         epoch_filename = args.output_dir / f"epoch_{epoch}.json"
