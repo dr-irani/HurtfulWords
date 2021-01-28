@@ -4,11 +4,11 @@
 #SBATCH --output bootstrap%A.log
 #SBATCH --mem 50gb
 
-set -e
-source activate hurtfulwords
+# set -e
+# source activate hurtfulwords
 
-BASE_DIR="/h/haoran/projects/HurtfulWords"
-OUTPUT_DIR="/h/haoran/projects/HurtfulWords/data/"
+BASE_DIR="/home/darius/HurtfulWords"
+OUTPUT_DIR="/media/data_1/darius/"
 cd "$BASE_DIR/scripts"
 
 python analyze_results.py \

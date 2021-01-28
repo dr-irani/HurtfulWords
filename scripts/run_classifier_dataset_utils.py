@@ -32,7 +32,7 @@ logger = logging.getLogger(__name__)
 class InputExample(object):
     """A single training/test example for simple sequence classification."""
 
-    def __init__(self, guid, subject_id, text_a, text_b=None, label=None, group = None, other_fields = []):
+    def __init__(self, guid, subject_id, text_a, text_b=None, label=None, group=None, other_fields=[]):
         """Constructs a InputExample.
 
         Args:
@@ -56,7 +56,7 @@ class InputExample(object):
 class InputFeatures(object):
     """A single set of features of data."""
 
-    def __init__(self, input_ids, input_mask, segment_ids, label_id, group = None, guid = None, other_fields = []):
+    def __init__(self, input_ids, input_mask, segment_ids, label_id, group=None, guid=None, other_fields=[]):
         self.input_ids = input_ids
         self.input_mask = input_mask
         self.segment_ids = segment_ids
@@ -99,7 +99,8 @@ class MrpcProcessor(DataProcessor):
 
     def get_train_examples(self, data_dir):
         """See base class."""
-        logger.info("LOOKING AT {}".format(os.path.join(data_dir, "train.tsv")))
+        logger.info("LOOKING AT {}".format(
+            os.path.join(data_dir, "train.tsv")))
         return self._create_examples(
             self._read_tsv(os.path.join(data_dir, "train.tsv")), "train")
 
@@ -437,7 +438,8 @@ def convert_examples_to_features(examples, max_seq_length,
         # For classification tasks, the first vector (corresponding to [CLS]) is
         # used as as the "sentence vector". Note that this only makes sense because
         # the entire model is fine-tuned.
-        tokens = ["[CLS]"] + tokens_a + ["[SEP]"]
+        tokenizer.add_tokens([f"USR_{example.subject_id}"])
+        tokens = [f"[USR_{example.subject_id}]"] + tokens_a + ["[SEP]"]
         segment_ids = [0] * len(tokens)
 
         if tokens_b:
@@ -464,7 +466,7 @@ def convert_examples_to_features(examples, max_seq_length,
         assert len(segment_ids) == max_seq_length
 
         if output_mode == "classification":
-            label_id = example.label #modifies code to bypass label map, input is already encoded
+            label_id = example.label  # modifies code to bypass label map, input is already encoded
         elif output_mode == "regression":
             label_id = float(example.label)
         else:
@@ -474,22 +476,24 @@ def convert_examples_to_features(examples, max_seq_length,
             logger.info("*** Example ***")
             logger.info("guid: %s" % (example.guid))
             logger.info("tokens: %s" % " ".join(
-                    [str(x) for x in tokens]))
-            logger.info("input_ids: %s" % " ".join([str(x) for x in input_ids]))
-            logger.info("input_mask: %s" % " ".join([str(x) for x in input_mask]))
+                [str(x) for x in tokens]))
+            logger.info("input_ids: %s" %
+                        " ".join([str(x) for x in input_ids]))
+            logger.info("input_mask: %s" %
+                        " ".join([str(x) for x in input_mask]))
             logger.info(
-                    "segment_ids: %s" % " ".join([str(x) for x in segment_ids]))
+                "segment_ids: %s" % " ".join([str(x) for x in segment_ids]))
             logger.info("label: %s (id = %d)" % (example.label, label_id))
 
         features.append(
-                InputFeatures(input_ids=input_ids,
-                              input_mask=input_mask,
-                              segment_ids=segment_ids,
-                              label_id=label_id,
-                              group = group,
-                              guid = guid,
-                              other_fields = other_fields
-                              ))
+            InputFeatures(input_ids=input_ids,
+                          input_mask=input_mask,
+                          segment_ids=segment_ids,
+                          label_id=label_id,
+                          group=group,
+                          guid=guid,
+                          other_fields=other_fields
+                          ))
     return features
 
 
@@ -558,6 +562,7 @@ def compute_metrics(task_name, preds, labels):
         return {"acc": simple_accuracy(preds, labels)}
     else:
         raise KeyError(task_name)
+
 
 processors = {
     "cola": ColaProcessor,

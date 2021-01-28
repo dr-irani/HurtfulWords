@@ -34,13 +34,13 @@ python pregenerate_training_data.py \
 	--epochs_to_generate 1 \
 	--max_seq_len 128 
 
-python pregenerate_training_data.py \
-	--train_df "$OUTPUT_DIR/df_grouped.pkl" \
-	--col_name "BERT_sents20" \
-	--output_dir "$OUTPUT_DIR/pregen_epochs/512/" \
-	--bert_model "$SCIBERT_DIR" \
-	--epochs_to_generate 1 \
-	--max_seq_len 512 
+# python pregenerate_training_data.py \
+# 	--train_df "$OUTPUT_DIR/df_grouped.pkl" \
+# 	--col_name "BERT_sents20" \
+# 	--output_dir "$OUTPUT_DIR/pregen_epochs/512/" \
+# 	--bert_model "$SCIBERT_DIR" \
+# 	--epochs_to_generate 1 \
+# 	--max_seq_len 512 
 
 # echo "Generating finetuning targets..."
 # python make_targets.py \
