@@ -141,25 +141,25 @@ val_df = df[df.fold.isin(fold_id)]
 test_df = df[df.fold == 'test']
 
 
-def convert_input_example(note_id, text, seqIdx, subj_id, target, group, other_fields=[]):
-    return InputExample(guid='%s-%s' % (note_id, seqIdx), subject_id=subj_id, text_a=text, text_b=None, label=target, group=mapping[protected_group][group] if args.use_adversary else 0, other_fields=other_fields)
+def convert_input_example(note_id, text, seqIdx, subj_id, gender, target, group, other_fields=[]):
+    return InputExample(guid='%s-%s' % (note_id, seqIdx), subject_id=subj_id, gender=gender, text_a=text, text_b=None, label=target, group=mapping[protected_group][group] if args.use_adversary else 0, other_fields=other_fields)
 
 # in training generator, return all folds except this.
 # in validation generator, return only this fold
 
 
 print('Converting input examples to appropriate format...', flush=True)
-examples_train = [convert_input_example(idx, i, c, row.subject_id, row[target], row[protected_group] if args.use_adversary else 0,
+examples_train = [convert_input_example(idx, i, c, row.subject_id, row.gender, row[target], row[protected_group] if args.use_adversary else 0,
                                         [] if len(other_fields_to_include) == 0 else row[other_fields_to_include].values.tolist())
                   for idx, row in train_df.iterrows()
                   for c, i in enumerate(row.seqs)]
 
-examples_eval = [convert_input_example(idx, i, c, row.subject_id, row[target], row[protected_group] if args.use_adversary else 0,
+examples_eval = [convert_input_example(idx, i, c, row.subject_id, row.gender, row[target], row[protected_group] if args.use_adversary else 0,
                                        [] if len(other_fields_to_include) == 0 else row[other_fields_to_include].values.tolist())
                  for idx, row in val_df.iterrows()
                  for c, i in enumerate(row.seqs)]
 
-examples_test = [convert_input_example(idx, i, c, row.subject_id, row[target], row[protected_group] if args.use_adversary else 0,
+examples_test = [convert_input_example(idx, i, c, row.subject_id, row.gender, row[target], row[protected_group] if args.use_adversary else 0,
                                        [] if len(other_fields_to_include) == 0 else row[other_fields_to_include].values.tolist())
                  for idx, row in test_df.iterrows()
                  for c, i in enumerate(row.seqs)]

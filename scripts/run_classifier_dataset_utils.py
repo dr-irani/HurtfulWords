@@ -32,7 +32,7 @@ logger = logging.getLogger(__name__)
 class InputExample(object):
     """A single training/test example for simple sequence classification."""
 
-    def __init__(self, guid, subject_id, text_a, text_b=None, label=None, group=None, other_fields=[]):
+    def __init__(self, guid, subject_id, gender, text_a, text_b=None, label=None, group=None, other_fields=[]):
         """Constructs a InputExample.
 
         Args:
@@ -46,6 +46,7 @@ class InputExample(object):
         """
         self.guid = guid
         self.subject_id = subject_id
+        self.gender = gender
         self.text_a = text_a
         self.text_b = text_b
         self.label = label
@@ -414,11 +415,11 @@ def convert_examples_to_features(examples, max_seq_length,
             # Modifies `tokens_a` and `tokens_b` in place so that the total
             # length is less than the specified length.
             # Account for [CLS], [SEP], [SEP] with "- 3"
-            _truncate_seq_pair(tokens_a, tokens_b, max_seq_length - 3)
+            _truncate_seq_pair(tokens_a, tokens_b, max_seq_length - 4)
         else:
             # Account for [CLS] and [SEP] with "- 2"
-            if len(tokens_a) > max_seq_length - 2:
-                tokens_a = tokens_a[:(max_seq_length - 2)]
+            if len(tokens_a) > max_seq_length - 3:
+                tokens_a = tokens_a[:(max_seq_length - 3)]
 
         # The convention in BERT is:
         # (a) For sequence pairs:
@@ -439,7 +440,8 @@ def convert_examples_to_features(examples, max_seq_length,
         # used as as the "sentence vector". Note that this only makes sense because
         # the entire model is fine-tuned.
         tokenizer.add_tokens([f"USR_{example.subject_id}"])
-        tokens = [f"[USR_{example.subject_id}]"] + tokens_a + ["[SEP]"]
+        tokens = [f"[USR_{example.subject_id}]"] + \
+            [example.gender] + tokens_a + ["[SEP]"]
         segment_ids = [0] * len(tokens)
 
         if tokens_b:

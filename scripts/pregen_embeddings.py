@@ -42,13 +42,14 @@ if 'note_id' in df.columns:
     df = df.set_index('note_id')
 
 
-def convert_input_example(note_id, text, seqIdx, subj_id):
-    return InputExample(guid='%s-%s' % (note_id, seqIdx), subject_id=subj_id, text_a=text, text_b=None, label=0, group=0, other_fields=[])
+def convert_input_example(note_id, text, seqIdx, subj_id, gender):
+    return InputExample(guid='%s-%s' % (note_id, seqIdx), subject_id=subj_id,
+                        gender=gender, text_a=text, text_b=None, label=0, group=0, other_fields=[])
 
 
 print('Converting input examples...')
-examples = [convert_input_example(idx, i, c, row.subject_id) for idx, row in tqdm(
-    df.iterrows()) for (c, i) in enumerate(row.seqs)]
+examples = [convert_input_example(idx, i, c, row.subject_id, row.gender)
+            for idx, row in tqdm(df.iterrows()) for (c, i) in enumerate(row.seqs)]
 print('Featurizing...')
 features = convert_examples_to_features(examples,
                                         Constants.MAX_SEQ_LEN, tokenizer, output_mode='classification')

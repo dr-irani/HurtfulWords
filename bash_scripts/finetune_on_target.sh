@@ -32,4 +32,5 @@ python finetune_on_target.py \
 	--other_fields age sofa sapsii sapsii_prob oasis oasis_prob \
         --gridsearch_classifier \
         --gridsearch_c \
-        --emb_method cat4
+        --emb_method cat4 \
+	--overwrite
