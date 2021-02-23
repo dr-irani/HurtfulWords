@@ -16,7 +16,7 @@ mkdir -p "$DATA_DIR/pregen_embs/"
 emb_method='cat4'
 model="baseline_clinical_BERT_1_epoch_512"
 target="inhosp_mort"
-adxperiment="gender"
+experiment="gender"
 echo $model
 
 # for target in inhosp_mort phenotype_first phenotype_all; do

@@ -1,24 +1,30 @@
 #!/h/haoran/anaconda3/bin/python
+import pandas as pd
+import Constants
+import collections
+import json
+import numpy as np
+from pytorch_pretrained_bert.tokenization import BertTokenizer
+from random import random, randrange, randint, shuffle, choice
+import shelve
+from tempfile import TemporaryDirectory
+from tqdm import tqdm, trange
+from pathlib import Path
+from argparse import ArgumentParser
 import sys
 import os
+import pickle
+import _pickle as cPickle
+import hickle as hkl
+from sklearn.externals import joblib
 sys.path.append(os.getcwd())
-from argparse import ArgumentParser
-from pathlib import Path
-from tqdm import tqdm, trange
-from tempfile import TemporaryDirectory
-import shelve
 
-from random import random, randrange, randint, shuffle, choice
-from pytorch_pretrained_bert.tokenization import BertTokenizer
-import numpy as np
-import json
-import collections
-import Constants
-import pandas as pd
 
 '''
 Code adapted from simple_lm_finetuning.py in huggingface/pytorch-pretrained-BERT
 '''
+
+
 class DocumentDatabase:
     def __init__(self):
         self.documents = []
@@ -30,7 +36,8 @@ class DocumentDatabase:
     def add_document(self, document):
         if not document:
             return
-        self.documents.append(document) #each document is a list of dictionaries
+        # each document is a list of dictionaries
+        self.documents.append(document)
         self.doc_lengths.append(len(document))
 
     def _precalculate_doc_weights(self):
@@ -44,12 +51,15 @@ class DocumentDatabase:
             if self.doc_cumsum is None or len(self.doc_cumsum) != len(self.doc_lengths):
                 self._precalculate_doc_weights()
             rand_start = self.doc_cumsum[current_idx]
-            rand_end = rand_start + self.cumsum_max - self.doc_lengths[current_idx]
+            rand_end = rand_start + self.cumsum_max - \
+                self.doc_lengths[current_idx]
             sentence_index = randrange(rand_start, rand_end) % self.cumsum_max
-            sampled_doc_index = np.searchsorted(self.doc_cumsum, sentence_index, side='right')
+            sampled_doc_index = np.searchsorted(
+                self.doc_cumsum, sentence_index, side='right')
         else:
             # If we don't use sentence weighting, then every doc has an equal chance to be chosen
-            sampled_doc_index = (current_idx + randrange(1, len(self.doc_lengths))) % len(self.doc_lengths)
+            sampled_doc_index = (
+                current_idx + randrange(1, len(self.doc_lengths))) % len(self.doc_lengths)
         assert sampled_doc_index != current_idx
         return self.documents[sampled_doc_index]
 
@@ -82,8 +92,10 @@ def truncate_seq_pair(tokens_a, tokens_b, max_num_tokens):
         else:
             trunc_tokens.pop()
 
+
 MaskedLmInstance = collections.namedtuple("MaskedLmInstance",
                                           ["index", "label"])
+
 
 def create_masked_lm_predictions(tokens, masked_lm_prob, max_predictions_per_seq, whole_word_mask, vocab_list):
     """Creates the predictions for the masked LM objective. This is mostly copied from the Google BERT repo, but
@@ -139,7 +151,8 @@ def create_masked_lm_predictions(tokens, masked_lm_prob, max_predictions_per_seq
                 # 10% of the time, replace with random word
                 else:
                     masked_token = choice(vocab_list)
-            masked_lms.append(MaskedLmInstance(index=index, label=tokens[index]))
+            masked_lms.append(MaskedLmInstance(
+                index=index, label=tokens[index]))
             tokens[index] = masked_token
 
     assert len(masked_lms) <= num_to_mask
@@ -181,6 +194,7 @@ def create_instances_from_document(
     current_chunk = []
     current_length = 0
     i = 0
+    count = 0
     while i < len(document):
         segment = document[i]['tokens']
         current_chunk.append(segment)
@@ -206,7 +220,8 @@ def create_instances_from_document(
                     target_b_length = target_seq_length - len(tokens_a)
 
                     # Sample a random document, with longer docs being sampled more frequently
-                    random_document = doc_database.sample_doc(current_idx=doc_idx, sentence_weighted=True)
+                    random_document = doc_database.sample_doc(
+                        current_idx=doc_idx, sentence_weighted=True)
 
                     random_start = randrange(0, len(random_document))
                     for j in range(random_start, len(random_document)):
@@ -231,15 +246,21 @@ def create_instances_from_document(
                     assert len(tokens_a) >= 1
                     assert len(tokens_b) >= 1
                 except AssertionError:
+                    count += 1
+                    i += 1
+                    continue
+                    # breakpoint()
                     print(document)
                     if random_document is not None:
                         print(random_document)
                     raise
 
-                tokens = ["[CLS]"] + tokens_a + ["[SEP]"] + tokens_b + ["[SEP]"]
+                tokens = ["[CLS]"] + tokens_a + \
+                    ["[SEP]"] + tokens_b + ["[SEP]"]
                 # The segment IDs are 0 for the [CLS] token, the A tokens and the first [SEP]
                 # They are 1 for the B tokens and the final [SEP]
-                segment_ids = [0 for _ in range(len(tokens_a) + 2)] + [1 for _ in range(len(tokens_b) + 1)]
+                segment_ids = [0 for _ in range(
+                    len(tokens_a) + 2)] + [1 for _ in range(len(tokens_b) + 1)]
 
                 tokens, masked_lm_positions, masked_lm_labels = create_masked_lm_predictions(
                     tokens, masked_lm_prob, max_predictions_per_seq, whole_word_mask, vocab_list)
@@ -257,7 +278,9 @@ def create_instances_from_document(
             current_length = 0
         i += 1
 
+    print(f'lost sentences: {count}')
     return instances
+
 
 def convert_example_to_features(example, max_seq_length, tokenizer):
     """
@@ -337,11 +360,11 @@ def convert_example_to_features(example, max_seq_length, tokenizer):
         logger.info("*** Example ***")
         logger.info("guid: %s" % (example.guid))
         logger.info("tokens: %s" % " ".join(
-                [str(x) for x in tokens]))
+            [str(x) for x in tokens]))
         logger.info("input_ids: %s" % " ".join([str(x) for x in input_ids]))
         logger.info("input_mask: %s" % " ".join([str(x) for x in input_mask]))
         logger.info(
-                "segment_ids: %s" % " ".join([str(x) for x in segment_ids]))
+            "segment_ids: %s" % " ".join([str(x) for x in segment_ids]))
         logger.info("LM label: %s " % (lm_label_ids))
         logger.info("Is next sentence label: %s " % (example.is_next))
 
@@ -351,6 +374,7 @@ def convert_example_to_features(example, max_seq_length, tokenizer):
                              lm_label_ids=lm_label_ids,
                              is_next=example.is_next)
     return features
+
 
 def random_word(tokens, tokenizer):
     """
@@ -383,7 +407,8 @@ def random_word(tokens, tokenizer):
             except KeyError:
                 # For unknown words (should not occur with BPE vocab)
                 output_label.append(tokenizer.vocab["[UNK]"])
-                logger.warning("Cannot find token '{}' in vocab. Using [UNK] insetad".format(token))
+                logger.warning(
+                    "Cannot find token '{}' in vocab. Using [UNK] insetad".format(token))
         else:
             # no masking token (will be ignored by loss function later)
             output_label.append(-1)
@@ -407,45 +432,49 @@ def _truncate_seq_pair(tokens_a, tokens_b, max_length):
         else:
             tokens_b.pop()
 
+
 def getGroups(row):
-    temp =  {i['name']:row[i['name']] for i in Constants.groups}
+    temp = {i['name']: row[i['name']] for i in Constants.groups}
     temp['note_id'] = row['note_id']
     return temp
+
 
 def prepare_docs(args, tokenizer, data):
     if len(args.categories) > 0:
         for i in args.categories:
-            assert((df['category'] == i).sum() > 0) # make sure each category is present
+            # make sure each category is present
+            assert((df['category'] == i).sum() > 0)
         df = df[df['category'].isin(args.categories)]
         if df.shape[0] == 0:
             raise Exception('dataframe is empty after subsetting!')
 
     if len(args.drop_group) > 0:
-        print('Records before dropping: %s' %len(df))
+        print('Records before dropping: %s' % len(df))
         for i in Constants.drop_groups[args.drop_group]:
             df = df[df[args.drop_group] != i]
-        print('Records after dropping: %s' %len(df))
+        print('Records after dropping: %s' % len(df))
 
-    docs =  DocumentDatabase()
+    docs = DocumentDatabase()
     for idx, row in tqdm(data.iterrows()):
         doc = []
         groups = getGroups(row)
         for d, line in enumerate(row[args.col_name]):
             sample = {
                 'tokens': tokenizer.tokenize(line),
-                 'groups': groups
+                'groups': groups
             }
             doc.append(sample)
         docs.add_document(doc)
     return docs
 
+
 def main():
     parser = ArgumentParser()
     parser.add_argument('--train_df', type=str, required=True)
-    parser.add_argument('--col_name', type=str, required = True)
+    parser.add_argument('--col_name', type=str, required=True)
     parser.add_argument("--output_dir", type=Path, required=True)
     parser.add_argument("--bert_model", type=str, required=True)
-    parser.add_argument("--do_whole_word_mask", action="store_true", default = True,
+    parser.add_argument("--do_whole_word_mask", action="store_true", default=True,
                         help="Whether to use whole word masking rather than per-WordPiece masking.")
     parser.add_argument("--epochs_to_generate", type=int, default=3,
                         help="Number of epochs of data to pregenerate")
@@ -456,38 +485,85 @@ def main():
                         help="Probability of masking each token for the LM task")
     parser.add_argument("--max_predictions_per_seq", type=int, default=20,
                         help="Maximum number of tokens to mask in each sequence")
-    parser.add_argument('--categories', type = str, nargs = '+', dest = 'categories', default = [])
-    parser.add_argument('--drop_group', type = str, default = '', help = 'name of adversarial protected group to drop classes for')
+    parser.add_argument('--categories', type=str, nargs='+',
+                        dest='categories', default=[])
+    parser.add_argument('--drop_group', type=str, default='',
+                        help='name of adversarial protected group to drop classes for')
 
     args = parser.parse_args()
 
     # df = pd.read_pickle(args.train_df)
 
-    tokenizer = BertTokenizer.from_pretrained(args.bert_model, do_lower_case=True)
+    tokenizer = BertTokenizer.from_pretrained(
+        args.bert_model, do_lower_case=True)
     vocab_list = list(tokenizer.vocab.keys())
 
     data_path = '/'.join(args.train_df.split('/')[:-1])
-    files = sorted([os.path.join(data_path, f) for f in os.listdir(data_path) if 'grouped' in f])
+    files = sorted([os.path.join(data_path, f)
+                    for f in os.listdir(data_path) if 'grouped' in f])
 
-    docs = prepare_docs(args, tokenizer, pd.read_pickle(files[0]))
-    for f in tqdm(files[1:]):
-        print(len(docs.doc_lengths))
-        docs.merge(prepare_docs(args, tokenizer, pd.read_pickle(f)))
+    # hickles = sorted([os.path.join(data_path, f)
+    #                   for f in os.listdir(data_path) if 'docs_' in f and '.sav' in f])
 
-    with open('/media/data_1/darius/data/docs.pkl', 'rb') as f:
-        pickle.dump(docs, f)
+    # start = 0 if len(hickles) == 0 else int(hickles[-1].split('.sav')[0][-1])
+    # print(f'Starting at {start+1}...')
+    # files = files[start:]
 
-    breakpoint()
+    # if len(hickles) == 0:
+    #     docs = prepare_docs(args, tokenizer, pd.read_pickle(files[0]))
+    # else:
+    #     print(f'Loading {hickles[-1].split("/")[-1]}...')
+    #     docs = joblib.load(hickles[-1])
+    #     # docs = hkl.load(hickles[-1])
+    #     # with open(hickles[-1], 'rb') as f:
+    #     #     docs = cPickle.load(f)
 
-    # df = pd.read_pickle(files[0])
+    # for i, file in tqdm(enumerate(files[1:], start=start + 1)):
+    #     print(f'Current file is {file.split("/")[-1]}...')
+    #     print(len(docs.doc_lengths))
+    #     docs.merge(prepare_docs(args, tokenizer, pd.read_pickle(file)))
+    #     joblib.dump(docs, f'/media/data_1/darius/data/docs_{i}.sav')
+    # hkl.dump(docs, f'/media/data_1/darius/data/docs_{i}.hkl', mode='w')
+    # with open(f'/media/data_1/darius/data/docs_{i}.pkl', 'wb') as f:
+    #     pickle.dump(docs, f, protocol=2)
+
+    # df_first = pd.read_pickle(files[0])
     # for f in tqdm(files[1:]):
-    #     df = pd.concat([df, pd.read_pickle(f)])
-    #     print(len(df))
+    #     df_first = pd.concat([df_first, pd.read_pickle(f)])
+    #     print(len(df_first))
 
-    # print('Prepare docs...')
+    # with open(f'/media/data_1/darius/data/all.pkl', 'wb') as f:
+    #     pickle.dump(df_first, f)
+    # print('First...')
+    # df = pd.read_pickle('/media/data_1/darius/data/first.pkl')
+    # print('Second...')
+    # df.merge(pd.read_pickle('/media/data_1/darius/data/second.pkl'))
+    # df = pd.concat([first, second])
+
+    # del first
+    # del second
+
+    # with open('/media/data_1/darius/data/docs.pkl', 'wb') as f:
+    #     pickle.dump(df, f)
+
+    # df_second = pd.read_pickle(files[6])
+    # for f in tqdm(files[7:]):
+    #     df_second = pd.concat([df_second, pd.read_pickle(f)])
+    #     print(len(df_second))
+
+    # with open(f'/media/data_1/darius/data/second.pkl', 'wb') as f:
+    #     pickle.dump(df_second, f)
+
+    print('Prepare docs...')
+    with open('/media/data_1/darius/data/prepared_docs.pkl', 'rb') as f:
+        docs = pickle.load(f)
+    # df = pd.read_pickle(args.train_df)
     # docs = prepare_docs(args, tokenizer, df)
+    # del df
+    # with open(f'/media/data_1/darius/data/prepared_docs.pkl', 'wb') as f:
+    #     pickle.dump(docs, f)
 
-    args.output_dir.mkdir(exist_ok=True, parents = True)
+    args.output_dir.mkdir(exist_ok=True, parents=True)
     for epoch in trange(args.epochs_to_generate, desc="Epoch"):
         epoch_filename = args.output_dir / f"epoch_{epoch}.json"
         num_instances = 0
@@ -497,7 +573,8 @@ def main():
                     docs, doc_idx, max_seq_length=args.max_seq_len, short_seq_prob=args.short_seq_prob,
                     masked_lm_prob=args.masked_lm_prob, max_predictions_per_seq=args.max_predictions_per_seq,
                     whole_word_mask=args.do_whole_word_mask, vocab_list=vocab_list)
-                doc_instances = [json.dumps(instance) for instance in doc_instances]
+                doc_instances = [json.dumps(instance)
+                                 for instance in doc_instances]
                 for instance in doc_instances:
                     epoch_file.write(instance + '\n')
                     num_instances += 1
@@ -509,5 +586,6 @@ def main():
             }
             metrics_file.write(json.dumps(metrics))
 
+
 if __name__ == '__main__':
-	main()
+    main()

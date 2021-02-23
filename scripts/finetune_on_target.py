@@ -96,9 +96,10 @@ if 'note_id' in df.columns:
 
 tokenizer = BertTokenizer.from_pretrained(args.model_path)
 model = BertModel.from_pretrained(args.model_path)
-device = "cpu"  # torch.device("cuda" if torch.cuda.is_available() else "cpu")
+device = torch.device("cuda:1" if torch.cuda.is_available() else "cpu")
 # was running into deadblocks with parallelizing across multiple GPUs
 n_gpu = 1 if torch.cuda.device_count() > 0 else 0
+print(f'Using {device} with {torch.cuda.device_count()} GPUs')
 model.to(device)
 
 target = args.target_col_name
@@ -707,6 +708,7 @@ if args.task_type == 'binary':
     print('Log Loss: %.5f' % ll)
     print('AUROC: %.5f' % roc)
     with open(os.path.join(args.output_dir, 'final_scores.txt'), 'w') as f:
+        print('Seed: %d' % args.seed, file=f)
         print('Accuracy: %.5f' % acc, file=f)
         print('AUPRC: %.5f' % auprc, file=f)
         print('Log Loss: %.5f' % ll, file=f)

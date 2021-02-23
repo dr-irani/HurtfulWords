@@ -439,9 +439,14 @@ def convert_examples_to_features(examples, max_seq_length,
         # For classification tasks, the first vector (corresponding to [CLS]) is
         # used as as the "sentence vector". Note that this only makes sense because
         # the entire model is fine-tuned.
-        tokenizer.add_tokens([f"USR_{example.subject_id}"])
-        tokens = [f"[USR_{example.subject_id}]"] + \
-            [example.gender] + tokens_a + ["[SEP]"]
+
+        # TODO: add_special_tokens: want cased USR_ and SEX_ tokens
+        # tokenizer.add_tokens(
+        #     [f"[usr_{example.subject_id}]", f"[sex_{example.gender.lower()}]"])
+        # tokens = [f"[usr_{example.subject_id}]"] + \
+        #     [f"[sex_{example.gender.lower()}]"] + tokens_a + ["[SEP]"]
+        # breakpoint()
+        tokens = ["[CLS]"] + tokens_a + ["[SEP]"]
         segment_ids = [0] * len(tokens)
 
         if tokens_b:
