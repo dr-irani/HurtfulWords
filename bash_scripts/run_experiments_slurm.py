@@ -47,4 +47,4 @@ for dfname, targetnames, model in tasks:
     for t in targetnames:
         logging.info(f'Finetuning {dfname} data on target {t}...')
         subprocess.call(shlex.split(
-            'bash finetune_on_target_random_seeds.sh "%s" "%s" "%s"' % (dfname, model, t)))
+            'sbatch finetune_on_target_random_seeds.sh "%s" "%s" "%s"' % (dfname, model, t)))
