@@ -3,7 +3,6 @@ import sys
 import subprocess
 import shlex
 import logging
-from numpy.random import RandomState
 
 log_format = '%(asctime)-10s: %(message)s'
 logging.basicConfig(level=logging.INFO, format=log_format)
@@ -44,14 +43,8 @@ tasks = [('inhosp_mort', ['inhosp_mort'],  model),
          ('phenotype_all', cols, model),
          ('phenotype_first', cols, model)]
 
-num_seeds = 100
-randomizer = RandomState(1)
-
 for dfname, targetnames, model in tasks:
     for t in targetnames:
-        for i in range(num_seeds):
-            seed = randomizer.randint(10000)
-            logging.info(
-                f'\nFinetuning {dfname} data on target {t} using seed {seed}...')
-            subprocess.call(shlex.split(
-                'sbatch finetune_on_target.sh "%s" "%s" "%s" "%d"' % (dfname, model, t, seed)))
+        logging.info(f'Finetuning {dfname} data on target {t}...')
+        subprocess.call(shlex.split(
+            'bash finetune_on_target_random_seeds.sh "%s" "%s" "%s"' % (dfname, model, t)))
