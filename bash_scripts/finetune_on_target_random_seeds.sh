@@ -1,17 +1,22 @@
 #!/bin/bash
-#SBATCH --partition t4 
+#SBATCH --partition gpu 
 #SBATCH --gres gpu:1
-#SBATCH -c 8
-#SBATCH --output=finetune_%A.out
+#SBATCH --output=/home/s.moreira/projects/HurtfulWords/bash_scripts/slurm_logs/finetune_%j.out
+#SBATCH --error=/home/s.moreira/projects/HurtfulWords/bash_scripts/slurm_logs/error_finetune_%j.err
 #SBATCH --mem 60gb
 
 # $1 - target type {inhosp_mort, phenotype_first, phenotype_all}
 # $2 - BERT model name {baseline_clinical_BERT_1_epoch_512, adv_clinical_BERT_1_epoch_512}
 # $3 - target column name within the dataframe, ex: "Shock", "any_acute"
 
-BASE_DIR="/home/darius/HurtfulWords"
-OUTPUT_DIR="/media/data_1/darius"
+module load cuda/11.0
+module load anaconda3
+
+BASE_DIR="/home/s.moreira/projects/HurtfulWords/"
+OUTPUT_DIR="/scratch/s.moreira/MIMIC/"
 DATA_DIR="${OUTPUT_DIR}/data"
+
+pip install -r $BASE_DIR"requirements.txt"
 
 cd "$BASE_DIR/scripts"
 
@@ -34,6 +39,5 @@ for ((i=1; i <= 100; i++)); do
             --gridsearch_classifier \
             --gridsearch_c \
             --emb_method cat4 \
-        --overwrite \
         --seed $seed
 done
