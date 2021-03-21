@@ -96,7 +96,7 @@ if 'note_id' in df.columns:
 
 tokenizer = BertTokenizer.from_pretrained(args.model_path)
 model = BertModel.from_pretrained(args.model_path)
-device = torch.device("cuda:1" if torch.cuda.is_available() else "cpu")
+device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 # was running into deadblocks with parallelizing across multiple GPUs
 n_gpu = 1 if torch.cuda.device_count() > 0 else 0
 print(f'Using {device} with {torch.cuda.device_count()} GPUs')
