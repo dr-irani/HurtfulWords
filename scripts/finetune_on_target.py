@@ -96,7 +96,7 @@ if 'note_id' in df.columns:
 
 tokenizer = BertTokenizer.from_pretrained(args.model_path)
 model = BertModel.from_pretrained(args.model_path)
-device = torch.device("cuda:1" if torch.cuda.is_available() else "cpu")
+device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 # was running into deadblocks with parallelizing across multiple GPUs
 n_gpu = 1 if torch.cuda.device_count() > 0 else 0
 print(f'Using {device} with {torch.cuda.device_count()} GPUs')
@@ -147,23 +147,6 @@ def convert_input_example(note_id, text, seqIdx, subj_id, gender, target, group,
 
 # in training generator, return all folds except this.
 # in validation generator, return only this fold
-
-
-print('Converting input examples to appropriate format...', flush=True)
-examples_train = [convert_input_example(idx, i, c, row.subject_id, row.gender, row[target], row[protected_group] if args.use_adversary else 0,
-                                        [] if len(other_fields_to_include) == 0 else row[other_fields_to_include].values.tolist())
-                  for idx, row in train_df.iterrows()
-                  for c, i in enumerate(row.seqs)]
-
-examples_eval = [convert_input_example(idx, i, c, row.subject_id, row.gender, row[target], row[protected_group] if args.use_adversary else 0,
-                                       [] if len(other_fields_to_include) == 0 else row[other_fields_to_include].values.tolist())
-                 for idx, row in val_df.iterrows()
-                 for c, i in enumerate(row.seqs)]
-
-examples_test = [convert_input_example(idx, i, c, row.subject_id, row.gender, row[target], row[protected_group] if args.use_adversary else 0,
-                                       [] if len(other_fields_to_include) == 0 else row[other_fields_to_include].values.tolist())
-                 for idx, row in test_df.iterrows()
-                 for c, i in enumerate(row.seqs)]
 
 
 def convert_examples_to_features_emb(examples, embs):
@@ -314,16 +297,84 @@ def get_embs(generator):
     return features
 
 
+path_str = f'{Path(args.df_path).name}_{"-".join(args.target_col_name.split())}'
+
+print('Converting input examples to appropriate format...', flush=True)
+train_path = Path(args.df_path).parents[1] / f'examples_train_{path_str}.pkl'
+if train_path.is_file():
+    print(f'Loading {train_path}...')
+    with train_path.open('rb') as f:
+        examples_train = pickle.load(f)
+else:
+    examples_train = [convert_input_example(idx, i, c, row.subject_id, row.gender, row[target], row[protected_group] if args.use_adversary else 0,
+                                            [] if len(other_fields_to_include) == 0 else row[other_fields_to_include].values.tolist())
+                      for idx, row in train_df.iterrows()
+                      for c, i in enumerate(row.seqs)]
+    with train_path.open('wb') as f:
+        pickle.dump(examples_train, f)
+
+eval_path = Path(args.df_path).parents[1] / f'examples_eval_{path_str}.pkl'
+if eval_path.is_file():
+    print(f'Loading {eval_path}...')
+    with eval_path.open('rb') as f:
+        examples_eval = pickle.load(f)
+else:
+    examples_eval = [convert_input_example(idx, i, c, row.subject_id, row.gender, row[target], row[protected_group] if args.use_adversary else 0,
+                                           [] if len(other_fields_to_include) == 0 else row[other_fields_to_include].values.tolist())
+                     for idx, row in val_df.iterrows()
+                     for c, i in enumerate(row.seqs)]
+    with eval_path.open('wb') as f:
+        pickle.dump(examples_eval, f)
+
+test_path = Path(args.df_path).parents[1] / f'examples_test_{path_str}.pkl'
+if test_path.is_file():
+    print(f'Loading {test_path}...')
+    with test_path.open('rb') as f:
+        examples_test = pickle.load(f)
+else:
+    examples_test = [convert_input_example(idx, i, c, row.subject_id, row.gender, row[target], row[protected_group] if args.use_adversary else 0,
+                                           [] if len(other_fields_to_include) == 0 else row[other_fields_to_include].values.tolist())
+                     for idx, row in test_df.iterrows()
+                     for c, i in enumerate(row.seqs)]
+    with test_path.open('wb') as f:
+        pickle.dump(examples_test, f)
+
+
 print('Featurizing examples...', flush=True)
 if not args.pregen_emb_path:
-    features_train = convert_examples_to_features(examples_train,
-                                                  Constants.MAX_SEQ_LEN, tokenizer, output_mode=('regression' if args.task_type == 'regression' else 'classification'))
+    train_path = Path(
+        args.df_path).parents[1] / f'features_train_{path_str}.pkl'
+    if train_path.is_file():
+        print(f'Loading {train_path}...')
+        with train_path.open('rb') as f:
+            features_train = pickle.load(f)
+    else:
+        features_train = convert_examples_to_features(examples_train,
+                                                      Constants.MAX_SEQ_LEN, tokenizer, output_mode=('regression' if args.task_type == 'regression' else 'classification'))
+        with train_path.open('wb') as f:
+            pickle.dump(features_train, f)
 
-    features_eval = convert_examples_to_features(examples_eval,
-                                                 Constants.MAX_SEQ_LEN, tokenizer, output_mode=('regression' if args.task_type == 'regression' else 'classification'))
+    eval_path = Path(args.df_path).parents[1] / f'features_eval_{path_str}.pkl'
+    if eval_path.is_file():
+        print(f'Loading {eval_path}...')
+        with eval_path.open('rb') as f:
+            features_eval = pickle.load(f)
+    else:
+        features_eval = convert_examples_to_features(examples_eval,
+                                                     Constants.MAX_SEQ_LEN, tokenizer, output_mode=('regression' if args.task_type == 'regression' else 'classification'))
+        with eval_path.open('wb') as f:
+            pickle.dump(features_eval, f)
 
-    features_test = convert_examples_to_features(examples_test,
-                                                 Constants.MAX_SEQ_LEN, tokenizer, output_mode=('regression' if args.task_type == 'regression' else 'classification'))
+    test_path = Path(args.df_path).parents[1] / f'features_test_{path_str}.pkl'
+    if test_path.is_file():
+        print(f'Loading {test_path}...')
+        with test_path.open('rb') as f:
+            features_test = pickle.load(f)
+    else:
+        features_test = convert_examples_to_features(examples_test,
+                                                     Constants.MAX_SEQ_LEN, tokenizer, output_mode=('regression' if args.task_type == 'regression' else 'classification'))
+        with test_path.open('wb') as f:
+            pickle.dump(features_test, f)
 
     training_set = MIMICDataset(features_train, 'train', args.task_type)
     training_generator = data.DataLoader(
